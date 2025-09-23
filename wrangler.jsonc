@@ -3,6 +3,9 @@
   "name": "r2-explorer",
   "workers_dev": true,
   "compatibility_date": "2025-09-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   // Entry point for the worker
   "main": "./worker/index.ts",
   "assets": {
