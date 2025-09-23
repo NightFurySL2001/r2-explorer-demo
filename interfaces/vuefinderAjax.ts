@@ -29,14 +29,5 @@ interface RequestTransformResult {
   body?: Record<string, string | undefined> | FormData // Body can be a form data or key-value pairs
 }
 
-// RequestTransformResultInternal Interface
-interface RequestTransformResultInternal {
-  url: string
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete' // HTTP methods
-  headers: Record<string, string>
-  params: Record<string, string | undefined>
-  body?: Record<string, string | undefined> | FormData // Body can be a form data or key-value pairs
-}
-
 // RequestTransformer Callback Type
 type RequestTransformer = (request: RequestTransformParams) => RequestTransformResult
