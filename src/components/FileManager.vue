@@ -2,7 +2,6 @@
     <VueFinder
         id="my_vuefinder"
         :request="request"
-        theme="light"
         style="display: flex; flex-direction: column"
         @select="(selection: any) => emit('select', selection)"
     ></VueFinder>
@@ -44,6 +43,7 @@ const request = {
         flex-grow: 1;
         .vuefinder__main__container {
             height: 100% !important;
+            max-height: none !important;
         }
     }
 }
