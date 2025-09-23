@@ -1,0 +1,21 @@
+{
+  // Wrangler configuration converted from wrangler.toml
+  "name": "r2-explorer",
+  "workers_dev": true,
+  "compatibility_date": "2025-09-23",
+  // Entry point for the worker
+  "main": "./worker/index.ts",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    // for downloading files directly from the worker
+    "run_worker_first": ["/api/vuefinder*"],
+  },
+  // S3 bucket configuration
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "your-bucket-name",
+      "preview_bucket_name": "your-bucket-name",
+    },
+  ],
+}
