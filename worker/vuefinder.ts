@@ -1,4 +1,4 @@
-import { AutoRouter, IRequest } from 'itty-router'
+import { AutoRouter, IRequest, json, error as json_error, StatusError } from 'itty-router'
 import JSZip from 'jszip'
 
 import type { R2Bucket, R2Object, R2ListOptions } from '@cloudflare/workers-types'
@@ -27,11 +27,23 @@ interface BodyItem {
     type: 'file' | 'dir'
 }
 
-const KEEP_FILE = '.r2keepdir'
-const KEEP_FILE_EXIST_RESPONSE = { message: `${KEEP_FILE} is used as folder placeholder and not a valid name`, status: false }
+const KEEP_FILE = '.keep'
+const KEEP_FILE_EXIST_RESPONSE = `${KEEP_FILE} is used as folder placeholder and not a valid name`
 
 // Router
-const router = AutoRouter({ prefix: '/api/vuefinder' })
+const router = AutoRouter({
+    prefix: '/api/vuefinder',
+    catch: (error: any) => {
+        if (error instanceof StatusError) {
+            // wrap error message in json response
+            return json_error(error.status, { message: error.message })
+        } else if (error instanceof Error) {
+            return json_error(500, { message: error.message ?? 'Internal Server Error' })
+        } else {
+            return json_error(500, { message: 'Unknown error' })
+        }
+    },
+})
 
 const STORAGE_TYPE: string = 'r2'
 
@@ -122,16 +134,16 @@ async function getAllFiles(request: PathRequest, env: Env) {
         .map((dirpath) =>
             dirpath !== '/'
                 ? {
-                    type: 'dir',
-                    path: dirpath.replace(/\/+$/g, ''),
-                    visibility: 'public',
-                    last_modified: Date.now(),
-                    mime_type: 'application/vnd.directory',
-                    basename: dirpath.replace(/\/$/g, '').split('/').pop() ?? '',
-                    extension: '',
-                    storage: STORAGE_TYPE,
-                    file_size: 0,
-                }
+                      type: 'dir',
+                      path: dirpath.replace(/\/+$/g, ''),
+                      visibility: 'public',
+                      last_modified: Date.now(),
+                      mime_type: 'application/vnd.directory',
+                      basename: dirpath.replace(/\/$/g, '').split('/').pop() ?? '',
+                      extension: '',
+                      storage: STORAGE_TYPE,
+                      file_size: 0,
+                  }
                 : null,
         )
         .filter((folder): folder is DirEntry => folder !== null)
@@ -148,14 +160,14 @@ async function getAllFiles(request: PathRequest, env: Env) {
             ...files.filter((file) => !file.key.endsWith(KEEP_FILE)).map(_toVuefinderResource),
         ],
     }
-    return Response.json(result)
+    return json(result)
 }
 
 async function getPreview(request: PathRequest, env: Env) {
     const path = request.currentDir
-    if (!path) return Response.json({ message: 'Missing path' }, { status: 400 })
+    if (!path) throw new StatusError(400, 'Missing path')
     const obj = await env.BUCKET.get(path)
-    if (!obj) return Response.json({ message: 'Not found' }, { status: 404 })
+    if (!obj) throw new StatusError(404, 'Not found')
 
     return new Response(obj.body as ReadableStream<Uint8Array>, {
         headers: {
@@ -167,9 +179,9 @@ async function getPreview(request: PathRequest, env: Env) {
 
 async function getDownload(request: PathRequest, env: Env) {
     const path = request.currentDir
-    if (!path) return Response.json({ message: 'Missing path' }, { status: 400 })
+    if (!path) throw new StatusError(400, 'Missing path')
     const obj = await env.BUCKET.get(path)
-    if (!obj) return Response.json({ message: 'Not found' }, { status: 404 })
+    if (!obj) throw new StatusError(404, 'Not found')
 
     return new Response(obj.body as ReadableStream<Uint8Array>, {
         headers: {
@@ -187,7 +199,7 @@ async function getSubdirs(request: PathRequest, env: Env) {
             folders.push(file)
         }
     }
-    return Response.json({ folders })
+    return json({ folders })
 }
 
 // --- Private POST Handlers ---
@@ -195,11 +207,11 @@ async function getSubdirs(request: PathRequest, env: Env) {
 async function postNewFolder(request: PathRequest, env: Env) {
     const body: { name: string } = await request.json()
     if (body.name === KEEP_FILE) {
-        return Response.json(KEEP_FILE_EXIST_RESPONSE, { status: 400 })
+        throw new StatusError(400, KEEP_FILE_EXIST_RESPONSE)
     }
     const name = _decodePath(`${request.currentDir}/${body.name}/${KEEP_FILE}`)
     if (await _checkIfExists(name, env)) {
-        return Response.json({ message: `Folder already exists`, status: false }, { status: 400 })
+        throw new StatusError(400, 'Folder already exists')
     }
     // R2 has no folders → create placeholder object
     await env.BUCKET.put(name, '')
@@ -209,11 +221,11 @@ async function postNewFolder(request: PathRequest, env: Env) {
 async function postNewFile(request: PathRequest, env: Env) {
     const body: { name: string } = await request.json()
     if (body.name === KEEP_FILE) {
-        return Response.json(KEEP_FILE_EXIST_RESPONSE, { status: 400 })
+        throw new StatusError(400, KEEP_FILE_EXIST_RESPONSE)
     }
     const name = _decodePath(`${request.currentDir}/${body.name}`)
     if (await _checkIfExists(name, env)) {
-        return Response.json({ message: `File already exists`, status: false }, { status: 400 })
+        throw new StatusError(400, 'File already exists')
     }
     await env.BUCKET.put(name, '')
     return getAllFiles(request, env)
@@ -223,16 +235,16 @@ async function postRename(request: PathRequest, env: Env) {
     const body: { item: string; name: string } = await request.json()
     // check destination name
     if (body.name === KEEP_FILE) {
-        return Response.json(KEEP_FILE_EXIST_RESPONSE, { status: 400 })
+        throw new StatusError(400, KEEP_FILE_EXIST_RESPONSE)
     }
     // check file exists
     const src = _decodePath(body.item)
     const obj = await env.BUCKET.get(src)
-    if (!obj) return Response.json({ message: 'Not found' }, { status: 404 })
+    if (!obj) throw new StatusError(404, 'Not found')
     // perform rename
     const dst = _decodePath(`${request.currentDir}/${body.name}`)
     if (await _checkIfExists(dst, env)) {
-        return Response.json({ message: `File already exists`, status: false }, { status: 400 })
+        throw new StatusError(400, 'File already exists')
     }
     await env.BUCKET.put(dst, obj.body)
     await env.BUCKET.delete(src)
@@ -249,11 +261,11 @@ async function postMoveOrCopy(request: PathRequest, env: Env, endpoint: string) 
 
         const dstFilename = src.split('/').pop()
         if (dstFilename === KEEP_FILE) {
-            return Response.json(KEEP_FILE_EXIST_RESPONSE, { status: 400 })
+            throw new StatusError(400, KEEP_FILE_EXIST_RESPONSE)
         }
         const dst = `${dstDir}/${dstFilename}`
         if (await _checkIfExists(dst, env)) {
-            return Response.json({ message: `File already exists`, status: false }, { status: 400 })
+            throw new StatusError(400, 'File already exists')
         }
         await env.BUCKET.put(dst, obj.body)
         if (endpoint === 'POST:move') {
@@ -299,19 +311,17 @@ async function postUpload(request: PathRequest, env: Env) {
     const formData: FormData = await request.formData()
     // get file first, then extract name from form field or file name
     const file = formData.get('file')
-    if (!file || !(file instanceof File))
-        return Response.json({ message: 'No file uploaded', status: false }, { status: 400 })
+    if (!file || !(file instanceof File)) throw new StatusError(400, 'No file uploaded')
 
     let name = formData.get('name') || file.name
-    if (typeof name !== 'string' || !name)
-        return Response.json({ message: 'Invalid file name', status: false }, { status: 400 })
+    if (typeof name !== 'string' || !name) throw new StatusError(400, 'Invalid file name')
     if (name === KEEP_FILE) {
-        return Response.json(KEEP_FILE_EXIST_RESPONSE, { status: 400 })
+        throw new StatusError(400, KEEP_FILE_EXIST_RESPONSE)
     }
     name = _decodePath(`${request.currentDir}/${name}`)
     // check file exists
     if (await _checkIfExists(name, env)) {
-        return Response.json({ message: `File already exists`, status: false }, { status: 400 })
+        throw new StatusError(400, 'File already exists')
     }
 
     const arrayBuffer = await file.arrayBuffer()
@@ -319,7 +329,7 @@ async function postUpload(request: PathRequest, env: Env) {
         httpMetadata: { contentType: file.type },
     })
 
-    return Response.json({ status: true, message: 'OK', path: name })
+    return json({ status: true, message: 'OK', path: name })
 }
 
 async function postArchive(request: PathRequest, env: Env) {
@@ -350,7 +360,7 @@ async function postUnarchive(request: PathRequest, env: Env) {
     const body: { item: string } = await request.json()
     const archivePath = body.item
     const obj = await env.BUCKET.get(archivePath)
-    if (!obj) return Response.json({ message: 'Archive not found' }, { status: 404 })
+    if (!obj) throw new StatusError(404, 'Archive not found')
 
     const buf = await obj.arrayBuffer()
     const zip = await JSZip.loadAsync(buf)
@@ -364,7 +374,7 @@ async function postUnarchive(request: PathRequest, env: Env) {
 
 async function postSave(request: PathRequest, env: Env) {
     const path = request.currentDir
-    if (!path) return Response.json({ message: 'Missing path' }, { status: 400 })
+    if (!path) throw new StatusError(400, 'Missing path')
     const body: { content: string } = await request.json()
     await env.BUCKET.put(path, body.content || '')
     return getPreview(request, env)
@@ -380,45 +390,41 @@ async function fetch(request: IRequest, env: Env) {
     const pathRequest = request as PathRequest
     pathRequest.currentDir = _decodePath(url.searchParams.get('path') || '/')
 
-    try {
-        switch (endpoint) {
-            // ---------- GET ----------
-            case 'GET:index':
-            case 'GET:search':
-                return getAllFiles(pathRequest, env)
-            case 'GET:preview':
-                return getPreview(pathRequest, env)
-            case 'GET:download':
-                return getDownload(pathRequest, env)
-            case 'GET:subfolders':
-                return getSubdirs(pathRequest, env)
+    switch (endpoint) {
+        // ---------- GET ----------
+        case 'GET:index':
+        case 'GET:search':
+            return getAllFiles(pathRequest, env)
+        case 'GET:preview':
+            return getPreview(pathRequest, env)
+        case 'GET:download':
+            return getDownload(pathRequest, env)
+        case 'GET:subfolders':
+            return getSubdirs(pathRequest, env)
 
-            // ---------- POST ----------
-            case 'POST:newfolder':
-                return postNewFolder(pathRequest, env)
-            case 'POST:newfile':
-                return postNewFile(pathRequest, env)
-            case 'POST:rename':
-                return postRename(pathRequest, env)
-            case 'POST:move':
-            case 'POST:copy':
-                return postMoveOrCopy(pathRequest, env, endpoint)
-            case 'POST:delete':
-                return postDelete(pathRequest, env)
-            case 'POST:upload':
-                return postUpload(pathRequest, env)
-            case 'POST:archive':
-                return postArchive(pathRequest, env)
-            case 'POST:unarchive':
-                return postUnarchive(pathRequest, env)
-            case 'POST:save':
-                return postSave(pathRequest, env)
+        // ---------- POST ----------
+        case 'POST:newfolder':
+            return postNewFolder(pathRequest, env)
+        case 'POST:newfile':
+            return postNewFile(pathRequest, env)
+        case 'POST:rename':
+            return postRename(pathRequest, env)
+        case 'POST:move':
+        case 'POST:copy':
+            return postMoveOrCopy(pathRequest, env, endpoint)
+        case 'POST:delete':
+            return postDelete(pathRequest, env)
+        case 'POST:upload':
+            return postUpload(pathRequest, env)
+        case 'POST:archive':
+            return postArchive(pathRequest, env)
+        case 'POST:unarchive':
+            return postUnarchive(pathRequest, env)
+        case 'POST:save':
+            return postSave(pathRequest, env)
 
-            default:
-                return Response.json({ message: 'Invalid endpoint' }, { status: 400 })
-        }
-    } catch (err: any) {
-        return Response.json({ message: err.message, status: false }, { status: 500 })
+        default:
+            throw new StatusError(400, 'Invalid endpoint')
     }
 }
 
