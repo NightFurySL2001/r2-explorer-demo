@@ -27,7 +27,7 @@ interface BodyItem {
     type: 'file' | 'dir'
 }
 
-const KEEP_FILE = '.keep'
+const KEEP_FILE = '.r2keepdir'
 const KEEP_FILE_EXIST_RESPONSE = `${KEEP_FILE} is used as folder placeholder and not a valid name`
 
 // Router
