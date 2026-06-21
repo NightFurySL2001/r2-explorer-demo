@@ -1,7 +1,7 @@
 import {
     Router, error as json_error, json, StatusError, type IRequestStrict, type RequestHandler
 } from 'itty-router'
-import { Zip, ZipDeflate, unzip } from 'fflate';
+import { Zip, ZipDeflate, unzipSync } from 'fflate';
 
 import type {
     DirEntry,
@@ -163,7 +163,7 @@ async function listFilesInDir(env: Env, currentDir: string): Promise<FileOperati
         cursor = next.truncated ? next.cursor : undefined
     }
 
-    let files: R2Object[] = listed.objects
+    const files: R2Object[] = listed.objects
     files.sort((a, b) => a.key.localeCompare(b.key))
 
     const folders: DirEntry[] = listed.delimitedPrefixes.flatMap((dirpath) => {
@@ -490,24 +490,16 @@ async function unzipArchive(env: Env, destinationDir: UnarchiveParams['path'], a
     const archiveObj = await env.BUCKET.get(archivePath)
     if (!archiveObj) throw new StatusError(404, 'Archive not found')
 
-    const buf = new Uint8Array(await archiveObj.arrayBuffer());
-    const files = await new Promise<Record<string, Uint8Array>>((resolve, reject) => {
-        unzip(buf, (err, data) => {
-            if (err) reject(err);
-            else resolve(data);
-        });
-    });
+    const buf = new Uint8Array(await archiveObj.arrayBuffer())
+    const files = unzipSync(buf)
+
     for (const [filename, content] of Object.entries(files)) {
-        let finalFilename = `${destinationDir}/${filename}`
-        console.log('Extracting file:', filename, 'size:', content);
+        const finalFilename = `${destinationDir}/${filename}`
         if (filename.endsWith('/')) {
             // create a keep file to preserve folder structure
             await _createNewFolderPlaceholder(env, finalFilename)
         } else {
-            await env.BUCKET.put(
-                _removeStoragePrefix(finalFilename),
-                content
-            );
+            await env.BUCKET.put(_removeStoragePrefix(finalFilename), content)
         }
     }
 }
