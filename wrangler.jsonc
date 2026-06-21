@@ -2,7 +2,7 @@
   // Wrangler configuration converted from wrangler.toml
   "name": "r2-explorer",
   "workers_dev": true,
-  "compatibility_date": "2025-09-23",
+  "compatibility_date": "2025-09-17",
   "compatibility_flags": [
     "nodejs_compat"
   ],

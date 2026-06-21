@@ -1,5 +1,5 @@
 import { AutoRouter } from "itty-router";
-import vuefinderRouter from "./vuefinder";
+import vuefinderRouter from "./vuefinder.ts";
 
 // Create a new router
 const router = AutoRouter({ base: "/api" });

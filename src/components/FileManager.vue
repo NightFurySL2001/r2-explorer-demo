@@ -1,40 +1,49 @@
 <template>
     <VueFinder
         id="my_vuefinder"
-        :request="request"
+        :driver="driver"
+        :config="{
+            initialPath: 'r2://',
+            persist: true,
+        }"
         style="display: flex; flex-direction: column"
-        @select="(selection: any) => emit('select', selection)"
+        @select="(selection: DirEntry[]) => emit('select', selection)"
     ></VueFinder>
 </template>
 
 <script setup lang="ts">
+import { RemoteDriver } from "vuefinder";
+import type { DirEntry } from "vuefinder";
+
 const emit = defineEmits<{
-    (e: "select", selection: any): void;
+    (e: "select", selection: DirEntry[]): void;
 }>();
 
-// Or ...
-const request = {
+const driver = new RemoteDriver({
     // ----- CHANGE ME! -----
-    // [REQUIRED] Url for development server endpoint
-    baseUrl: "/api/vuefinder",
-    // ----- CHANGE ME! -----
+    // [REQUIRED] URL for Vuefinder API endpoint
+    baseURL: "/api/vuefinder",
 
-    // Additional headers & params & body
-    // headers: { "X-ADDITIONAL-HEADER": "yes" },
-    // params: { additionalParam1: 'yes' },
-    // body: { additionalBody1: ['yes'] },
-
-    // And/or transform request callback
-    // transformRequest: (req: Request) => {
-    //   if (req.method === 'get') {
-    //     req.params.vf = '1'
-    //   }
-    //   return req
+    // Additional headers & url & authorization bearer token
+    // url: {
+    //     list: "/files",
+    //     upload: "/upload",
+    //     delete: "/delete",
+    //     rename: "/rename",
+    //     copy: "/copy",
+    //     move: "/move",
+    //     archive: "/archive",
+    //     unarchive: "/unarchive",
+    //     createFile: "/create-file",
+    //     createFolder: "/create-folder",
+    //     preview: "/preview",
+    //     download: "/download",
+    //     search: "/search",
+    //     save: "/save",
     // },
-
-    // XSRF Token header name
-    // xsrfHeaderName: "X-CSRF-TOKEN",
-};
+    // headers: { "X-ADDITIONAL-HEADER": "yes" },
+    // token: "BEARER TOKEN",
+});
 </script>
 
 <style>

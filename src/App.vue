@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import FileManager from "./components/FileManager.vue";
-import type { DirEntry } from "../interfaces/vuefinder";
+import type { DirEntry } from "vuefinder";
 
 function close() {
     console.log("Close file manager");
