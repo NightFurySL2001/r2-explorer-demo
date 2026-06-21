@@ -506,7 +506,7 @@ async function unzipArchive(env: Env, destinationDir: UnarchiveParams['path'], a
 
 async function saveTextFile(env: Env, filePath: SaveParams['path'], content: SaveParams['content']): Promise<void> {
     if (!filePath) throw new StatusError(400, 'Missing path')
-    await env.BUCKET.put(filePath, content || '', {
+    await env.BUCKET.put(_removeStoragePrefix(filePath), content || '', {
         httpMetadata: { contentType: 'text/plain' },
     })
 }
@@ -623,7 +623,7 @@ router.post('/upload', async (request: VuefinderRequest, env: Env) => {
         name: formData.get('name')?.toString() || undefined,
         type: formData.get('type')?.toString() || undefined,
     }
-    await uploadFile(env, body.path, body)
+    await uploadFile(env, _removeStoragePrefix(body.path), body)
     return json({})
 })
 
@@ -633,8 +633,8 @@ router.post('/archive', async (request: VuefinderRequest, env: Env) => {
     if (!body.items || body.items.length === 0) throw new StatusError(400, 'No items to archive')
     if (!body.name) throw new StatusError(400, 'Missing archive name')
 
-    await createArchive(env, body.path, body.destination ?? body.path, body.name, body.items)
-    return listFilesInDir(env, body.path)
+    await createArchive(env, _removeStoragePrefix(body.path), _removeStoragePrefix(body.destination ?? body.path), body.name, body.items)
+    return listFilesInDir(env, _removeStoragePrefix(body.path))
 })
 
 router.post('/unarchive', async (request: VuefinderRequest, env: Env) => {
@@ -642,8 +642,8 @@ router.post('/unarchive', async (request: VuefinderRequest, env: Env) => {
     if (!body.path) throw new StatusError(400, 'Missing path parameter')
     if (!body.item) throw new StatusError(400, 'Missing item parameter')
 
-    await unzipArchive(env, body.destination ?? body.path, body.item)
-    return listFilesInDir(env, body.path)
+    await unzipArchive(env, _removeStoragePrefix(body.destination ?? body.path), body.item)
+    return listFilesInDir(env, _removeStoragePrefix(body.path))
 })
 
 router.post('/save', async (request: VuefinderRequest, env: Env) => {
@@ -651,8 +651,8 @@ router.post('/save', async (request: VuefinderRequest, env: Env) => {
     if (!body.path) throw new StatusError(400, 'Missing path parameter')
     if (!body.content) body.content = ''
 
-    await saveTextFile(env, body.path, body.content)
-    return getPreview(env, body.path)
+    await saveTextFile(env, _removeStoragePrefix(body.path), body.content)
+    return getPreview(env, _removeStoragePrefix(body.path))
 })
 
 router.all('*', async () => {
