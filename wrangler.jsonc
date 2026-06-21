@@ -1,6 +1,6 @@
 {
   // Wrangler configuration converted from wrangler.toml
-  "name": "r2-explorer",
+  "name": "r2-explorer-demo",
   "workers_dev": true,
   "compatibility_date": "2025-09-17",
   "compatibility_flags": [
